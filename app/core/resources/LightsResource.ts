@@ -1,4 +1,5 @@
 import { Application } from "express";
+import { constants } from "http2";
 import Logger from "../../misc/Logger";
 import { LightsService } from "../services/LightsService";
 import { Request, Response, NextFunction } from "express";
@@ -17,7 +18,7 @@ export class LightsResource {
 
     private getIndex = (req: Request, res: Response, next: NextFunction): void => {
         writeLineWithRequest("Requested index", req, writeLine);
-        res.status(204).send();
+        res.status(constants.HTTP_STATUS_NO_CONTENT).send();
     }
 
     private listDevices = (req: Request, res: Response, next: NextFunction): void => {
@@ -30,7 +31,7 @@ export class LightsResource {
         writeLineWithRequest("Requested add device", req, writeLine);
         const { name, ip, port } = req.body;
         const device = this.lightsService.addDevice(name, ip, port);
-        res.status(201).json(device);
+        res.status(constants.HTTP_STATUS_CREATED).json(device);
     }
 
 
