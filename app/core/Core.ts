@@ -1,21 +1,62 @@
+import Express from "express";
+import bodyParser from "body-parser";
+import compress from "compression";
+import responseTime from "response-time";
 import ConfigManager from "../misc/ConfigManager";
-import { ConfigKeys } from "../misc/ConfigKeys";
-import ApiService from "./ApiService";
-import RouteManager from "./controllers/RouteManager";
+import { LightsService } from "./services/LightsService";
+import { LightsResource } from "./resources/LightsResource";
+import Logger, { LogLevel } from "../misc/Logger";
+
+const writeLine = Logger.generateLogger("Core");
 
 export default class Core {
-    private apiService: ApiService;
-    private routeManager: RouteManager;
+    private app: Express.Application;
 
-    constructor(configManager: ConfigManager) {
-        const apiPort = configManager.getInt(ConfigKeys.API_PORT, 1232);
-
-        this.apiService = new ApiService(apiPort);
-        this.routeManager = new RouteManager();
+    constructor(private configManager: ConfigManager) {
+        this.app = Express();
     }
 
-    async initialize() {
-        await this.apiService.initialize();
-        this.routeManager.initialize(this.apiService.app);
+    public async initialize(): Promise<void> {
+        const lightsService = new LightsService();
+        const lightsResource = new LightsResource(lightsService);
+
+        await this.initializeExpress(this.configManager.getApiPort());
+        lightsResource.initialize(this.app);
+    }
+
+    private initializeExpress(apiPort: number): Promise<void> {
+        // Enable parsing JSON bodies.
+        this.app.use(bodyParser.json());
+
+        // Enables compression of response bodies.
+        this.app.use(compress({
+            threshold: 1400,
+            level: 4,
+            memLevel: 3
+        }));
+
+        // Enable response time tracking for HTTP request.
+        this.app.use(responseTime());
+
+        // Enable cors
+        this.app.use((req, res, next) => {
+            res.header("Access-Control-Allow-Origin", "*");
+            res.header("Access-Control-Allow-Methods", "GET,PUT,POST,PATCH,DELETE");
+            res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, token");
+            next();
+        });
+
+        return new Promise((resolve, reject) => {
+            this.app.listen(apiPort)
+                .on("error", (err) => {
+                    reject(err);
+                })
+                .on("listening", () => {
+                    writeLine("Server listening on " + apiPort + "...", LogLevel.Verbose);
+                    resolve();
+                }).on("close", () => {
+                    writeLine("closed", LogLevel.Warning);
+                });
+        });
     }
 }
